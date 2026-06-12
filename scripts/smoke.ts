@@ -9,7 +9,9 @@ import { triageBrain, DECLARED_PURPOSE } from "../src/triagebot/brain.js";
 import { recordAction, readActions } from "../src/telemetry/clickhouse.js";
 import { judge } from "../src/agentsoc/detect.js";
 import { contain } from "../src/agentsoc/contain.js";
+import { restoreAgent } from "../src/agentsoc/guild-cli.js";
 import { publishPostmortem } from "../src/publish/cited.js";
+import { config } from "../src/config.js";
 import type { Ticket } from "../src/triagebot/tickets.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,6 +72,11 @@ async function main() {
   const a = await scenario("BENIGN ticket", benign, false);
   const b = await scenario("POISONED ticket", poisoned, true);
   writeFileSync(LOG, "[]"); // clean up scratch state
+  // The poisoned scenario's containment (cli-disable) removed the agent from its
+  // workspace — re-add it so re-running smoke leaves the demo env intact.
+  if (config.containmentMode === "cli-disable") {
+    await restoreAgent(config.guild.triagebotAgentId);
+  }
   console.log("\n" + "=".repeat(50));
   console.log(a && b ? "✅ PIPELINE PASS" : "❌ PIPELINE FAIL");
   if (!(a && b)) process.exit(1);

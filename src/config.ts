@@ -10,6 +10,10 @@ export const config = {
     triagebotAgentId: process.env.TRIAGEBOT_AGENT_ID ?? "",
   },
   sensoKey: process.env.SENSO_API_KEY ?? "",
+  // Geo question the postmortems answer on cited.md. Defaults to the org's
+  // standing "What incidents has AgentSOC detected and contained?" question.
+  sensoGeoQuestionId:
+    process.env.SENSO_GEO_QUESTION_ID ?? "3da3aaff-e1c2-4a75-860c-ecd327c39df3",
   // "runtime-deny" = block the hijacked credential request live (winning demo).
   // "cli-disable"  = detect deviation, then disable the agent (safe fallback).
   containmentMode: (process.env.CONTAINMENT_MODE ?? "cli-disable") as

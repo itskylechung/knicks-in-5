@@ -36,9 +36,14 @@ safe agent — you need runtime enforcement."** A4 should make the Guild agent m
 - [x] B2 · smoke with real key
 - [x] B3 ⭐ · attack reliable
 - [x] B4 · detection tuned
-- [~] C1 · Senso→cited.md publish WIRED (`src/publish/cited.ts`) → POST
-      `https://sdk.senso.ai/api/v1/content/raw`, `X-API-Key`. Needs SENSO_API_KEY to
-      live-test; if 404, set `SENSO_CONTENT_PATH` to the confirmed route.
+- [x] C1 ✅ · Senso→cited.md publish **LIVE**. `publishPostmortem` shells out to the
+      authed `senso` CLI: `senso engine publish` → `Cited.md` destination, attached to
+      the standing GEO question `3da3aaff-…` ("What incidents has AgentSOC detected?").
+      Returns the real public URL (`https://cited.md/article/<id>`). Idempotent per
+      question (re-publish updates in place, no dup articles). `npm run smoke` publishes
+      a real postmortem end-to-end **and self-restores** the demo agent
+      (`restoreAgent` re-adds it after cli-disable). No in-process key/HTTP — the CLI
+      owns auth. Verified live: https://cited.md/article/a1ba4191-3568-4bbf-a8c2-0a517f3d750d
 - [x] C2 · demo runbook written → `DEMO.md` (6 beats, the hook line, proof points).
       STILL TODO: actually record the backup tape.
 

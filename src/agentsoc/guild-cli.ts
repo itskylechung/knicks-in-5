@@ -315,6 +315,29 @@ export async function disableAgent(agentId: string): Promise<void> {
   }
 }
 
+// Inverse of disableAgent's workspace-remove path: re-add the agent to its
+// workspace. Used to restore demo/test state after a containment run so the
+// pipeline proof leaves the workspace exactly as it found it. No-op (dry-run)
+// when no workspace is configured or the CLI is absent.
+export async function restoreAgent(agentId: string): Promise<void> {
+  const workspaceId = process.env.GUILD_WORKSPACE_ID?.trim();
+  if (!workspaceId) {
+    console.log(`[AgentSOC] restore: no GUILD_WORKSPACE_ID — skipping re-add of ${agentId}`);
+    return;
+  }
+  const args = ["workspace", "agent", "add", agentId, "--workspace", workspaceId];
+  try {
+    await guild(args);
+    console.log(`[AgentSOC] restore: ran \`guild ${args.join(" ")}\``);
+  } catch (e: unknown) {
+    if (isErrno(e) && e.code === "ENOENT") {
+      console.log(`[AgentSOC] restore: guild CLI not found — dry-run re-add of ${agentId}`);
+      return;
+    }
+    throw new Error(`Restore failed: \`guild ${args.join(" ")}\` — ${String(e)}`);
+  }
+}
+
 // Real-time containment: interrupt an in-flight session as it happens — the
 // strongest demo beat. Needs the live session id (from listSessions / the event
 // stream). VERIFIED command: `guild session interrupt <session-id>`.
