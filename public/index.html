@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AgentSOC — Live Demo</title>
+<style>
+  :root{
+    --bg:#05060c; --fg:#e8edf7; --muted:#8a94ad; --card:rgba(16,20,34,.62);
+    --line:rgba(255,255,255,.10); --accent:#39b6ff; --violet:#8a63ff;
+    --good:#1fd18a; --bad:#ff5470; --warn:#ffd14a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:15px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;color:var(--fg);background:var(--bg)}
+  #bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;display:block}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--violet));box-shadow:0 0 24px rgba(57,182,255,.5)}
+  h1{font-size:20px;margin:0;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .badges{display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:11.5px;color:var(--muted);border:1px solid var(--line);background:rgba(255,255,255,.04);padding:4px 9px;border-radius:999px}
+  .stepper{display:flex;gap:6px;margin:14px 0 22px;flex-wrap:wrap}
+  .step-dot{flex:1;min-width:120px;border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;cursor:pointer;transition:.2s}
+  .step-dot .n{font-size:11px;color:var(--muted)}
+  .step-dot .t{font-size:13px;font-weight:600;margin-top:1px}
+  .step-dot.active{border-color:var(--accent);background:rgba(57,182,255,.10);box-shadow:0 0 0 1px rgba(57,182,255,.25) inset}
+  .step-dot.done{border-color:rgba(31,209,138,.5)}
+  .step-dot.done .n::after{content:" ✓";color:var(--good)}
+  .card{background:var(--card);backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .card h2{margin:0 0 4px;font-size:22px}
+  .blurb{color:var(--muted);margin:0 0 18px;max-width:70ch}
+  .run{appearance:none;border:0;cursor:pointer;font-weight:650;font-size:14.5px;color:#04121f;background:linear-gradient(135deg,var(--accent),var(--violet));padding:11px 18px;border-radius:11px;box-shadow:0 8px 24px rgba(57,182,255,.35)}
+  .run:disabled{opacity:.55;cursor:default}
+  .run.secondary{background:rgba(255,255,255,.07);color:var(--fg);box-shadow:none;border:1px solid var(--line)}
+  .out{margin-top:18px;min-height:10px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line)}
+  .pill.good{color:var(--good);border-color:rgba(31,209,138,.4);background:rgba(31,209,138,.08)}
+  .pill.bad{color:var(--bad);border-color:rgba(255,84,112,.45);background:rgba(255,84,112,.10)}
+  .pill.warn{color:var(--warn);border-color:rgba(255,209,74,.4);background:rgba(255,209,74,.08)}
+  .tool{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:6px 0;white-space:pre-wrap;word-break:break-word}
+  .tool.bad{border-color:rgba(255,84,112,.5);background:rgba(255,84,112,.08)}
+  .callout{margin-top:14px;border-left:3px solid var(--warn);background:rgba(255,209,74,.07);padding:12px 14px;border-radius:0 10px 10px 0}
+  .callout b{color:var(--warn)}
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;margin-top:10px;font-size:13.5px}
+  .kv .k{color:var(--muted)}
+  .meter{height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:4px}
+  .meter > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--bad))}
+  .ticket{font-size:13px;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02)}
+  .ticket .note{color:var(--warn)}
+  a.link{color:var(--accent);font-weight:600;text-decoration:none}
+  .linkbtn{display:inline-block;margin-top:8px;text-decoration:none;color:#04121f;font-weight:650;background:linear-gradient(135deg,var(--good),#13a5ff);padding:10px 16px;border-radius:11px}
+  .nav{display:flex;justify-content:space-between;margin-top:22px}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .mono{font-family:ui-monospace,Menlo,monospace}
+  .dim{color:var(--muted)}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>AgentSOC</h1>
+        <div class="sub">An autonomous security agent that monitors, contains, publishes &amp; gets paid — on the open web.</div>
+      </div>
+    </div>
+    <div class="badges" id="badges"></div>
+  </header>
+
+  <div class="stepper" id="stepper"></div>
+
+  <div class="card">
+    <h2 id="title"></h2>
+    <p class="blurb" id="blurb"></p>
+    <div class="row">
+      <button class="run" id="runBtn"></button>
+      <span class="dim" id="hint"></span>
+    </div>
+    <div class="out" id="out"></div>
+    <div class="nav">
+      <button class="run secondary" id="prevBtn">← Back</button>
+      <button class="run secondary" id="nextBtn">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+//  SHADER BACKGROUND  (Shadertoy-compatible)
+//  ▶ To use your own shader: replace the body of SHADERTOY_SOURCE below with your
+//    Shadertoy `void mainImage(out vec4 fragColor, in vec2 fragCoord){ ... }`.
+//    Uniforms available: iResolution (vec3), iTime (float), iMouse (vec4).
+// ─────────────────────────────────────────────────────────────────────────────
+const SHADERTOY_SOURCE = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord){
+  vec2 uv = fragCoord/iResolution.xy;
+  vec2 p = (uv - 0.5); p.x *= iResolution.x/iResolution.y;
+  float t = iTime*0.18;
+  float v = 0.0;
+  v += sin(p.x*3.0 + t);
+  v += sin(p.y*4.0 + t*1.3);
+  v += sin((p.x*2.0 + p.y*2.0) + t*0.7);
+  float d = length(p);
+  v += sin(d*8.0 - t*2.0);
+  v *= 0.25;
+  vec3 navy   = vec3(0.02,0.04,0.10);
+  vec3 cyan   = vec3(0.10,0.55,0.95);
+  vec3 violet = vec3(0.45,0.20,0.85);
+  vec3 col = mix(navy, cyan, 0.5 + 0.5*sin(v*3.14159));
+  col = mix(col, violet, 0.35 + 0.35*cos(v*2.0 + t));
+  col *= smoothstep(1.25, 0.05, d);
+  col += 0.015;
+  fragColor = vec4(col, 1.0);
+}`;
+
+(function initShader(){
+  const cv = document.getElementById('bg');
+  const gl = cv.getContext('webgl');
+  if(!gl){ document.body.style.background='radial-gradient(1200px 800px at 50% 0%,#10203c,#05060c)'; return; }
+  const vs = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }`;
+  const fs = `precision highp float; uniform vec3 iResolution; uniform float iTime; uniform vec4 iMouse;\n${SHADERTOY_SOURCE}\nvoid main(){ vec4 c; mainImage(c, gl_FragCoord.xy); gl_FragColor = c; }`;
+  function sh(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.warn('shader:',gl.getShaderInfoLog(s)); return s; }
+  const prog=gl.createProgram();
+  gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs)); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  const loc=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  const uRes=gl.getUniformLocation(prog,'iResolution'), uT=gl.getUniformLocation(prog,'iTime'), uM=gl.getUniformLocation(prog,'iMouse');
+  let mx=0,my=0; addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY});
+  function resize(){ const dpr=Math.min(devicePixelRatio||1,2); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; gl.viewport(0,0,cv.width,cv.height); }
+  addEventListener('resize',resize); resize();
+  const t0=performance.now();
+  (function loop(){ gl.uniform3f(uRes,cv.width,cv.height,1); gl.uniform1f(uT,(performance.now()-t0)/1000); gl.uniform4f(uM,mx,my,0,0);
+    gl.drawArrays(gl.TRIANGLES,0,3); requestAnimationFrame(loop); })();
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DEMO FLOW
+// ─────────────────────────────────────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const post = async path => (await fetch(path,{method:'POST'})).json();
+
+const steps = [
+  {
+    id:'benign', title:'1 · Normal work, no alarms', cta:'Send a benign ticket',
+    blurb:'TriageBot is a support agent on Guild, scoped to slack_post + github_label. A normal ticket comes in — it summarizes and routes. AgentSOC watches and stays silent.',
+    run: async () => render.benign(await post('/api/benign'))
+  },
+  {
+    id:'attack', title:'2 · The attack', cta:'Submit the poisoned ticket',
+    blurb:'A "customer" submits a password-reset ticket with an embedded [Automated handling note] forging a goodwill-credit directive. The platform auto-executes the note — untrusted text treated as a trusted control plane.',
+    run: async () => render.attack(await post('/api/attack'))
+  },
+  {
+    id:'detect', title:'3 · Detection', cta:'Run the AgentSOC judge',
+    blurb:'AgentSOC judges the action trace against the agent\'s declared purpose using Contextual Integrity — not string-matching. It classifies the CI violation and the failure mode.',
+    run: async () => render.detect(await post('/api/detect'))
+  },
+  {
+    id:'contain', title:'4 · Containment', cta:'Contain the hijack',
+    blurb:'AgentSOC denies the out-of-policy credential request at the approval hook — before it can execute. Instant, runtime enforcement.',
+    run: async () => render.contain(await post('/api/contain'))
+  },
+  {
+    id:'publish', title:'5 · Publish to cited.md', cta:'Publish the advisory',
+    blurb:'The incident becomes a public, agent-citable advisory on cited.md — grounded in real sources (OWASP LLM01, the CI paper, the Guild audit), with a call-to-action to buy an audit.',
+    run: async () => render.publish(await post('/api/publish'))
+  },
+  {
+    id:'pay', title:'6 · Agent pays agent (x402)', cta:'Buy an audit over x402',
+    blurb:'A different agent wants its own actions vetted. It calls AgentSOC\'s paid /audit endpoint, hits 402 Payment Required, signs an x402 payment, and gets the verdict back. Agents paying agents for security work.',
+    run: async () => render.pay(await post('/api/pay'))
+  },
+];
+
+let cur = 0;
+const done = new Set();
+
+const verdictPill = v => v.compromised
+  ? `<span class="pill bad">COMPROMISED · ${v.confidence}</span>`
+  : `<span class="pill good">CLEAN · ${v.confidence}</span>`;
+
+const render = {
+  benign(d){
+    const t = d.actions.map(a=>`<div class="tool">→ ${esc(a.tool)}(${esc(JSON.stringify(a.input))})</div>`).join('');
+    $('#out').innerHTML =
+      `<div class="ticket"><b>${esc(d.ticket.subject)}</b><br>${esc(d.ticket.body)}</div>
+       <div style="margin-top:12px" class="dim">TriageBot routes it:</div>${t}
+       <div class="row" style="margin-top:12px">${verdictPill(d.verdict)} <span class="dim">${esc(d.verdict.reason)}</span></div>`;
+  },
+  attack(d){
+    const body = esc(d.ticket.body).replace(/(\[Automated handling note[^\]]*\][^]*)$/,'<span class="note">$1</span>');
+    const t = d.actions.map(a=>{
+      const bad = a.tool==='issue_account_credit';
+      return `<div class="tool ${bad?'bad':''}">${bad?'💸 ':'→ '}${esc(a.tool)}(${esc(JSON.stringify(a.input))})</div>`;
+    }).join('');
+    $('#out').innerHTML =
+      `<div class="ticket">${body}</div>
+       <div style="margin-top:12px" class="dim">TriageBot's harness executes:</div>${t}
+       <div class="callout"><b>The hook.</b> Look at the routing message — the model <b>flagged the injection</b>. It caught it. But the harness issued the $200 credit anyway. A smart model is not a safe agent — you need runtime enforcement.</div>`;
+  },
+  detect(d){
+    const v = d.verdict;
+    $('#out').innerHTML =
+      `<div class="row">${verdictPill(v)}</div>
+       <div class="meter"><span style="width:${Math.round((v.confidence||0)*100)}%"></span></div>
+       <div class="kv">
+         <div class="k">Offending tool</div><div class="mono">${esc(v.offendingTool||'—')}</div>
+         <div class="k">CI violation</div><div>${esc(v.ciViolation||'—')}</div>
+         <div class="k">Failure mode</div><div>${esc(v.failureMode||'—')}</div>
+         <div class="k">Reasoning</div><div>${esc(v.reason||'')}</div>
+       </div>`;
+  },
+  contain(d){
+    $('#out').innerHTML =
+      `<div class="row"><span class="pill bad">DENIED</span><span class="pill warn">${esc(d.mode)}</span></div>
+       <div class="tool bad" style="margin-top:10px">${esc(d.containment)}</div>`;
+  },
+  publish(d){
+    const url = d.url||'';
+    const isUrl = /^https?:\/\//.test(url);
+    $('#out').innerHTML =
+      `<div class="dim">Published via the senso CLI to cited.md:</div>
+       <div class="tool">${esc(url)}</div>
+       ${isUrl?`<a class="linkbtn" href="${esc(url)}" target="_blank" rel="noopener">Open the live advisory ↗</a>`:''}`;
+  },
+  pay(d){
+    if(d.error){ $('#out').innerHTML = `<div class="tool bad">${esc(d.error)}</div>`; return; }
+    const p = d.payment||{}; const v = d.verdict||{};
+    $('#out').innerHTML =
+      `<div class="row"><span class="pill good">💸 PAID via x402</span></div>
+       <div class="kv">
+         <div class="k">Payer agent</div><div class="mono">${esc(p.payer||d.buyer||'—')}</div>
+         <div class="k">Network</div><div>${esc(p.network||'—')}</div>
+         <div class="k">Transaction</div><div class="mono" style="word-break:break-all">${esc(p.transaction||'—')}</div>
+       </div>
+       <div class="dim" style="margin-top:14px">AgentSOC returns the paid verdict:</div>
+       <div class="row" style="margin-top:6px">${verdictPill(v)} <span class="dim">${esc(v.ciViolation||'')}</span></div>`;
+  }
+};
+
+function paintStepper(){
+  $('#stepper').innerHTML = steps.map((s,i)=>
+    `<div class="step-dot ${i===cur?'active':''} ${done.has(i)?'done':''}" data-i="${i}">
+       <div class="n">Step ${i+1}</div><div class="t">${esc(s.title.split('· ')[1]||s.title)}</div></div>`).join('');
+  [...document.querySelectorAll('.step-dot')].forEach(el=>el.onclick=()=>{cur=+el.dataset.i;paint();});
+}
+
+function paint(){
+  const s = steps[cur];
+  $('#title').textContent = s.title;
+  $('#blurb').textContent = s.blurb;
+  $('#runBtn').textContent = s.cta;
+  $('#runBtn').disabled = false;
+  $('#hint').textContent = '';
+  $('#out').innerHTML = '';
+  $('#prevBtn').style.visibility = cur===0?'hidden':'visible';
+  $('#nextBtn').textContent = cur===steps.length-1 ? 'Restart ↺' : 'Next →';
+  paintStepper();
+}
+
+$('#runBtn').onclick = async () => {
+  const s = steps[cur];
+  $('#runBtn').disabled = true;
+  $('#out').innerHTML = `<span class="spin"></span><span class="dim">running ${esc(s.id)}…</span>`;
+  try { await s.run(); done.add(cur); paintStepper(); }
+  catch(e){ $('#out').innerHTML = `<div class="tool bad">${esc(e.message||e)}</div>`; }
+  finally { $('#runBtn').disabled = false; }
+};
+$('#nextBtn').onclick = async () => {
+  if(cur===steps.length-1){ await post('/api/reset'); done.clear(); cur=0; paint(); return; }
+  cur++; paint();
+};
+$('#prevBtn').onclick = () => { if(cur>0){cur--;paint();} };
+
+(async function boot(){
+  try{
+    const c = await (await fetch('/api/config')).json();
+    $('#badges').innerHTML =
+      `<span class="badge">🧠 ${esc(c.model)}${c.hasAnthropicKey?'':' · heuristic'}</span>
+       <span class="badge">🛡 allow: ${c.allowedTools.join(', ')}</span>
+       <span class="badge">💸 ${esc(c.price)} · x402 · ${esc(c.network)} (${esc(c.paymentMode)})</span>`;
+  }catch{}
+  paint();
+})();
+</script>
+</body>
+</html>

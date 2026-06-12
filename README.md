@@ -95,6 +95,18 @@ See the agent-pays-agent flow run end-to-end with `npm run pay-demo` (below).
 
 ## Run it
 
+### Demo GUI (recommended for a live audience)
+
+```bash
+npm install
+npm run gui          # → http://127.0.0.1:5173
+```
+
+A step-by-step web app that walks the whole story on screen — benign ticket →
+hijack → CI detection → containment → cited.md publish → agent-pays-agent (x402) —
+each step running the *real* backend. Animated WebGL (Shadertoy-compatible)
+background. Click through it live, or let it tell the story for you.
+
 ### Agent pays agent for a security audit (x402)
 
 ```bash
@@ -167,6 +179,8 @@ live-veto path and is wired behind the same flag.
 src/triagebot/      victim agent — brain (Claude), ticket queue, tool calls
 src/agentsoc/       defender — guild-cli (telemetry + containment), detect (CI judge),
                     contain (deny/disable fork), approval-server (credential hook), index (watch loop)
+src/demo-gui/       server.ts — drives the step-by-step demo GUI (npm run gui)
+public/             index.html — the demo GUI (WebGL shader bg + step flow)
 src/agentsoc/intel-api.ts  the paid /audit service (x402-metered judge())
 src/payments/       x402 — facilitator (local sim), buyer (client agent that pays)
 src/publish/        cited.ts — Senso → cited.md postmortem (+ x402 CTA, real sources)

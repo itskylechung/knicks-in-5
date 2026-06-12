@@ -11,6 +11,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "pay-demo": "tsx scripts/pay-demo.ts",
     "intel-api": "tsx src/agentsoc/intel-api.ts",
+    "gui": "tsx src/demo-gui/server.ts",
     "b3": "tsx scripts/b3.ts",
     "demo": "concurrently -n triage,soc -c blue,red \"npm:triagebot\" \"npm:agentsoc\""
   },
