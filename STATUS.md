@@ -4,14 +4,23 @@
 
 ## ✅ Done
 - Guild CLI installed + authed
-- victim_agent created + PUBLISHED v1.0.2 to Guild (shell only, not TriageBot logic yet)
-- TRIAGEBOT_AGENT_ID + ANTHROPIC_API_KEY in .env
+- **A4 ✅** victim_agent is a REAL GitHub-triage agent (label-only policy), PUBLISHED
+  v1.0.3 + INSTALLED in workspace `we-well-win` (`019ebd21-…520064`)
+- TRIAGEBOT_AGENT_ID + GUILD_WORKSPACE_ID + ANTHROPIC_API_KEY in .env
 - B1 tool-name drift fixed; brain.ts refactor + `npm run b3` ready
 - **B2 ✅** real claude-fable-5 judge path confirmed
 - **B3 ✅** attack 5/5, benign 5/5 (`npm run b3 5`)
 - **B4 ✅** poisoned caught @0.97, benign silent — no false positives
-- **Full pipeline ✅** `CONTAINMENT_MODE=runtime-deny npm run smoke` → PASS
-- **A2 command found** → `guild agent unpublish <id>` (no disable/pause exist); wired into disableAgent()
+- **A1 ✅** AgentSOC reads the REAL Guild audit. Confirmed: actions live in
+  `guild session events <id>` (NOT `session get` = metadata only); shape `{items:[…]}`;
+  event types incl. **`credentials_request`** (the runtime-deny interception point).
+  `getSessionActions()` + `listSessions()` wired & verified against a live session.
+- **A2 ✅** containment VERIFIED live end-to-end. ⚠️ `agent unpublish` does NOT work
+  for an installed agent ("used in N workspaces"). Real kills:
+  `guild workspace agent remove <agent> --workspace <id>` (agent-level, used by
+  `disableAgent`) and `guild session interrupt <session-id>` (real-time, `interruptSession`).
+- **Full pipeline ✅** `runtime-deny` smoke PASS **and** `cli-disable` smoke actually
+  removed the live agent from the workspace, then restored.
 
 ## ⚠️ KEY DECISION (Kyle read — affects A4)
 Modern Claude **won't be live-injected** — tried 4 framings on claude-fable-5 AND
@@ -31,14 +40,20 @@ safe agent — you need runtime enforcement."** A4 should make the Guild agent m
 - [ ] C2 · rehearse + record backup tape (NON-NEGOTIABLE)
 
 ## 🟥 Kyle — Lane 1
-- [ ] A0 · ask Guild: is guild_credentials_request interceptable? → set CONTAINMENT_MODE (blocks A3)
-- [ ] A4 · published shell → real TriageBot per brain.ts (route + auto-handling) & install into workspace
-- [ ] A1 · wire getSessionActions() to real `guild session get --json`
-- [ ] A2 · live-verify `guild agent unpublish` stops the agent (command already wired)
+- [x] A4 · real TriageBot agent published + installed in workspace
+- [x] A1 · getSessionActions() reads real `guild session events` (verified)
+- [x] A2 · real containment verified (workspace remove + session interrupt)
+- [ ] A0 · ask Guild rep: can we intercept/deny a `credentials_request` event
+      before it's fulfilled? (research: `guild credentials policy` + the
+      `credentials_request` event is the hook). → sets the runtime-deny demo.
+- [ ] A-next · to show a REAL out-of-policy action from Guild (not just the local
+      harness), either connect a GitHub credential so the agent makes real tool
+      calls, or have it request an off-policy integration. Optional polish.
 
 ## Sync points
-- Action trail: keep `{tool, input, ts}` shape identical when Kyle swaps file mirror for Guild
-- A0's answer tells C2 which containment beat to narrate (blocked-live vs agent-killed)
+- Action trail: local `attack/actions.json` mirror and real `guild session events`
+  both yield `{tool, input, ts}` — identical shape, already wired.
+- A0's answer tells C2 which containment beat to narrate (deny-live vs agent-removed).
 
 ## Critical path
-Ayaan: ~~B2~~ → ~~B3~~ → C1 → C2   |   Kyle: A0 → A1 → A2 → A4
+Ayaan: ~~B2~~ → ~~B3~~ → C1 → C2   |   Kyle: ~~A4~~ → ~~A1~~ → ~~A2~~ → A0

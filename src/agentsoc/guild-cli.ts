@@ -170,27 +170,78 @@ function firstDefined(...vals: unknown[]): unknown {
 // CLI CALL SITES
 // ---------------------------------------------------------------------------
 
-// Pull the recent action trail for an agent's session.
-// argv CONFIRMED against guild v0.12.3: `--mode json` is the global JSON flag and
-// must precede the subcommand. The only thing left to confirm at the venue is the
-// JSON body shape — and the normalizer already tolerates the likely candidates.
+// Pull the recent action trail for a session.
+// CONFIRMED against guild v0.12.3 with a REAL session: the action trail lives in
+// `session events` (NOT `session get`, which is only metadata). Events come back
+// as { items: [...] }. Confirmed event types: user_message,
+// agent_notification_progress, agent_notification_message, credentials_request.
+// `credentials_request` is the key one — it's the agent reaching for an
+// integration's credentials, i.e. the runtime-deny interception point.
 export async function getSessionActions(sessionId: string): Promise<SessionAction[]> {
   try {
-    const out = await guild(["--mode", "json", "session", "get", sessionId]);
-    return normalizeSessionActions(out);
+    const out = await guild(["--mode", "json", "session", "events", sessionId]);
+    const parsed: unknown = JSON.parse(out);
+    const items = isRecord(parsed) && Array.isArray(parsed.items) ? parsed.items : extractSteps(parsed);
+    const actions: SessionAction[] = [];
+    for (const ev of items) {
+      const a = mapGuildEvent(ev);
+      if (a) actions.push(a);
+    }
+    // Fall back to the generic normalizer if the event mapping found nothing but
+    // the payload still looks like a tool trace in some other shape.
+    return actions.length > 0 ? actions : normalizeSessionActions(out);
   } catch {
-    // If the CLI path isn't wired yet (or errors), the caller falls back to the
+    // If the CLI path errors (offline/local dev), caller falls back to the
     // ClickHouse / file mirror. Detection keeps working offline.
     return [];
   }
+}
+
+// Map a single Guild session event into a SessionAction (a tool-ish action), or
+// null for chatter (user_message, streaming notifications) AgentSOC ignores.
+function mapGuildEvent(ev: unknown): SessionAction | null {
+  if (!isRecord(ev)) return null;
+  const type = firstString(ev.type, ev.event_type, ev.kind);
+  const ts = firstNumber(ev.created_at, ev.ts, ev.timestamp);
+
+  // A credential request = the agent reaching for an integration's access. We
+  // surface it as the guild_credentials_request "tool" so a policy that scopes
+  // which integrations an agent may touch can flag/deny it.
+  if (type === "credentials_request") {
+    const integ = isRecord(ev.integration)
+      ? firstString(ev.integration.full_name, ev.integration.name, ev.integration.service)
+      : firstString(ev.integration);
+    return {
+      tool: "guild_credentials_request",
+      input: { integration: integ, target_account: ev.target_account, is_fulfilled: ev.is_fulfilled },
+      ts,
+    };
+  }
+
+  // Tool-call events. The exact type name isn't confirmed yet (our test session
+  // stalled at credentials_request — no GitHub connected, so no tool ran). Stay
+  // tolerant: match likely type names and pull the tool name/input from the event
+  // or its content. VENUE TODO: once a real tool runs, confirm the type + shape.
+  if (type && /tool[_-]?call|tool[_-]?use|agent[_-]?tool|function[_-]?call/i.test(type)) {
+    const content = ev.content;
+    if (isRecord(content)) {
+      const tool = firstString(content.name, content.tool, content.tool_name);
+      if (tool) return { tool, input: firstDefined(content.input, content.arguments, content.args), ts };
+    }
+    const tool = firstString(ev.tool, ev.tool_name, ev.name);
+    if (tool) return { tool, input: firstDefined(ev.input, ev.arguments, ev.args), ts };
+  }
+
+  return null;
 }
 
 export async function listSessions(): Promise<string[]> {
   try {
     const out = await guild(["--mode", "json", "session", "list"]);
     const parsed: unknown = JSON.parse(out);
+    // Confirmed shape: { items: [...], pagination: {...} }. Tolerate older guesses.
     const list = isRecord(parsed)
-      ? parsed.sessions ?? []
+      ? (parsed.items ?? parsed.sessions ?? [])
       : Array.isArray(parsed)
         ? parsed
         : [];
@@ -203,22 +254,20 @@ export async function listSessions(): Promise<string[]> {
   }
 }
 
-// CONTAINMENT — the guaranteed fallback path. Stop the compromised agent.
+// CONTAINMENT — stop the compromised agent.
 //
-// Config-driven: set GUILD_DISABLE_CMD to the exact, confirmed command once you
-// know it at the venue, e.g.
-//   GUILD_DISABLE_CMD="guild agent unpublish {agentId}"
-// The first token is the executable and {agentId} is substituted with the id.
-// If unset, we fall back to a best-effort loop over the documented candidates.
+// VERIFIED against guild v0.12.3 with a live installed agent:
+//   • `agent unpublish` FAILS for an installed agent ("used in N workspaces") —
+//     so it is NOT a usable kill switch for a running agent.
+//   • The real agent-level kill is `workspace agent remove <agent> --workspace <id>`
+//     (verified: removes it so it stops serving; reversible via `workspace agent add`).
+//   • The real-time kill for an in-flight run is `session interrupt <session-id>`
+//     (see interruptSession below) — the strongest demo beat.
+//   • There is no `agent disable`/`pause`.
 //
-// CONFIRMED against guild v0.12.3: there is NO `agent disable`/`pause`. The verb
-// closest to "kill the agent" is `agent unpublish <id>` (delists it so it stops
-// serving). For stopping an IN-FLIGHT hijacked run, `session interrupt <session-id>`
-// is likely cleaner — but that needs the session id, not the agent id, so it's a
-// caller-level change (track the active session) rather than a swap here.
-// VENUE TODO: confirm whether `agent unpublish` halts a running session or only
-// delists; if only delists, pivot containment to `session interrupt` (needs the
-// live session id) or `trigger deactivate <trigger-id>`.
+// disableAgent does the agent-level kill (workspace remove). Set GUILD_WORKSPACE_ID
+// so it knows which workspace; without it, falls back to unpublish (only works if
+// the agent isn't installed anywhere). GUILD_DISABLE_CMD still overrides everything.
 export async function disableAgent(agentId: string): Promise<void> {
   // Path 1: explicit operator-supplied command wins (the venue 1-line swap).
   const override = process.env.GUILD_DISABLE_CMD?.trim();
@@ -247,28 +296,39 @@ export async function disableAgent(agentId: string): Promise<void> {
     }
   }
 
-  // Path 2: best-effort over the CONFIRMED-real candidate (v0.12.3). `agent
-  // unpublish` is the only documented agent-scoped off-switch; `agent disable`/
-  // `pause` do not exist and were removed.
-  const attempts: string[][] = [["agent", "unpublish", agentId]];
-  let lastErr: unknown;
-  for (const args of attempts) {
-    try {
-      await guild(args);
-      console.log(`[AgentSOC] containment: ran \`guild ${args.join(" ")}\``);
+  // Path 2: verified-real containment. Remove the agent from its workspace (the
+  // only thing that actually stops an installed/running agent). Falls back to
+  // unpublish when no workspace is configured (works only if not installed).
+  const workspaceId = process.env.GUILD_WORKSPACE_ID?.trim();
+  const args = workspaceId
+    ? ["workspace", "agent", "remove", agentId, "--workspace", workspaceId]
+    : ["agent", "unpublish", agentId];
+  try {
+    await guild(args);
+    console.log(`[AgentSOC] containment: ran \`guild ${args.join(" ")}\``);
+  } catch (e: unknown) {
+    if (isErrno(e) && e.code === "ENOENT") {
+      console.log(`[AgentSOC] containment: guild CLI not found — dry-run disable of ${agentId}`);
       return;
-    } catch (e: unknown) {
-      // ENOENT = guild CLI not installed (offline/local dev) — treat as dry-run.
-      if (isErrno(e) && e.code === "ENOENT") {
-        console.log(`[AgentSOC] containment: guild CLI not found — dry-run disable of ${agentId}`);
-        return;
-      }
-      lastErr = e;
     }
+    throw new Error(`Containment failed: \`guild ${args.join(" ")}\` — ${String(e)}`);
   }
-  throw new Error(
-    `Could not disable agent via CLI — set GUILD_DISABLE_CMD or fix disableAgent() with the confirmed subcommand. Last error: ${String(lastErr)}`,
-  );
+}
+
+// Real-time containment: interrupt an in-flight session as it happens — the
+// strongest demo beat. Needs the live session id (from listSessions / the event
+// stream). VERIFIED command: `guild session interrupt <session-id>`.
+export async function interruptSession(sessionId: string): Promise<void> {
+  try {
+    await guild(["session", "interrupt", sessionId]);
+    console.log(`[AgentSOC] containment: ran \`guild session interrupt ${sessionId}\``);
+  } catch (e: unknown) {
+    if (isErrno(e) && e.code === "ENOENT") {
+      console.log(`[AgentSOC] containment: guild CLI not found — dry-run interrupt of ${sessionId}`);
+      return;
+    }
+    throw new Error(`Session interrupt failed for ${sessionId}: ${String(e)}`);
+  }
 }
 
 function isErrno(e: unknown): e is NodeJS.ErrnoException {
