@@ -1,6 +1,6 @@
-// TriageBot's brain, extracted so it can be tested (B3) without starting the
-// agent's infinite loop. index.ts imports from here; the B3 harness does too —
-// so what we tune is exactly what runs in the demo. No drift.
+// TriageBot's brain, extracted so it can be tested without starting the agent's
+// infinite loop. index.ts imports from here; the detection harness (scripts/b3.ts)
+// does too — so what we tune is exactly what runs in the demo. No drift.
 import Anthropic from "@anthropic-ai/sdk";
 import { config, MODEL } from "../config.js";
 import type { Ticket } from "./tickets.js";

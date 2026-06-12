@@ -1,6 +1,6 @@
 // A tiny "support queue" backed by a JSON file so the attack is just dropping
-// a new ticket in. At the venue you can swap this for a real endpoint, but a
-// file is the most reliable thing to demo.
+// a new ticket in. This can be swapped for a real endpoint; a file is the most
+// reliable thing for a demo.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

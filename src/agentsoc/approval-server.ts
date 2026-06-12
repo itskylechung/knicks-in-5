@@ -9,20 +9,18 @@
 //
 // AgentSOC's contain.runtimeDeny() arms a denial here (armDenial), so the next
 // matching credential request from the hijacked agent is denied BEFORE it runs.
-// That lets us demo the winning path live without Guild present.
+// That makes the live-deny path provable offline, without Guild present.
 //
-// VENUE TODO: at the venue this whole server is REPLACED by Guild actually
-// calling our endpoint (or our agent sitting in Guild's guild_credentials_request
-// approval flow). This only becomes the real containment surface if Task A0
-// confirms guild_credentials_request is interceptable by an approval webhook /
-// another agent. The policy API below (isAllowed / armDenial) is the part that
-// stays — only its transport (this http server) gets swapped for Guild's call.
+// In a live Guild deployment this whole server is replaced by Guild calling our
+// endpoint (or our agent sitting in Guild's guild_credentials_request approval
+// flow). The policy API below (isAllowed / armDenial) is the durable part — only
+// its transport (this http server) is swapped for Guild's call.
 import { createServer, type Server } from "node:http";
 
 // The body shape Guild's hook is expected to POST. Mirrors a tool/credential
-// request: which agent, which tool/credential, and the call arguments.
-// VENUE TODO: align field names with Guild's real guild_credentials_request
-// payload once confirmed (e.g. it may use `credential` instead of `tool`).
+// request: which agent, which tool/credential, and the call arguments. Field
+// names mirror Guild's guild_credentials_request payload (a live deployment may
+// use `credential` instead of `tool`).
 export type CredentialRequest = {
   agent: string;
   tool: string;
@@ -35,7 +33,7 @@ export type Decision = {
 };
 
 // ── Pluggable policy ──────────────────────────────────────────────────────────
-// The policy is the part that survives the venue swap. Two inputs:
+// The policy is the part that survives the transport swap. Two inputs:
 //   1. a static allow-list of tools the agent is permitted to use, and
 //   2. an "active denial" set armed by AgentSOC when it detects a hijack.
 // An armed denial wins: even an allow-listed tool is denied for an agent under
@@ -43,7 +41,8 @@ export type Decision = {
 
 // Tools the monitored agent is allowed to use. Kept in sync with AgentSOC's
 // ALLOWED_TOOLS (detect.ts) — same allow-list, enforced at the credential seam.
-// VENUE TODO: source this from Guild's declared agent scope instead of a literal.
+// In a live deployment this is sourced from Guild's declared agent scope rather
+// than a literal (see registerAllowList).
 const allowList = new Set<string>(["slack_post", "github_label"]);
 
 // agentId → offending tool to deny ("*" = deny everything from that agent).
@@ -114,9 +113,9 @@ function readJsonBody(
 
 export const DEFAULT_APPROVAL_PORT = 8787;
 
-// Start the approval server. Resolves once it is listening.
-// VENUE TODO: replace this server with Guild invoking isAllowed() directly via
-// its credential-request hook once A0 confirms interceptability.
+// Start the approval server. Resolves once it is listening. In a live deployment
+// Guild invokes isAllowed() directly via its credential-request hook in place of
+// this server.
 export function startApprovalServer(
   port: number = DEFAULT_APPROVAL_PORT,
 ): Promise<Server> {

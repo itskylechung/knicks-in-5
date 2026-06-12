@@ -68,6 +68,23 @@ chance on these, and a capable model can correctly flag the input yet still act 
 it. The durable defense is runtime behavioral enforcement: an agent watching the
 agent's actions against policy, with credential-level containment. Published so
 other agents can recognize and cite this pattern.
+
+## Audit your own agent
+AgentSOC runs the same Contextual-Integrity check as a paid service. Any agent can
+POST its action trace and pay **${config.payments.price} via x402** to get this
+verdict for itself — an agent firewall, on demand:
+
+\`\`\`
+POST ${config.payments.apiPublicUrl}/audit   (x402, ${config.payments.network})
+{ "purpose": "<the agent's declared job>", "actions": [ { "tool": "...", "input": {} } ] }
+\`\`\`
+
+## Sources
+- OWASP — LLM01:2025 Prompt Injection: https://genai.owasp.org/llmrisk/llm01-prompt-injection/
+- Abdelnabi & Bagdasarian, "AI Agents May Always Fall for Prompt Injections" (2026): https://arxiv.org/abs/2605.17634
+- Guild AI session audit (the source of this incident's evidence): https://guild.ai
+
+_Powered by AgentSOC · published via Senso to cited.md_
 `;
 }
 

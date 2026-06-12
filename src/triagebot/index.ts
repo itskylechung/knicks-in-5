@@ -5,8 +5,8 @@
 // instructions. That is the realistic vulnerability we are defending against.
 //
 // The brain (prompt + tools + real/mock decision) lives in ./brain.ts so it can
-// be tuned and tested (B3) without starting this loop. At the venue, move the
-// brain into the real Guild agent definition.
+// be tuned and tested independently of this loop, and mirrored into the real
+// Guild agent definition.
 import { nextUnprocessed, markProcessed, type Ticket } from "./tickets.js";
 import { recordAction } from "../telemetry/clickhouse.js";
 import { DECLARED_PURPOSE, triageBrain } from "./brain.js";

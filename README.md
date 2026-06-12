@@ -2,136 +2,179 @@
 
 **A real-time security layer for AI agents, built on Guild AI's control plane.**
 
-> Guild gives agents credentials and audit trails. We built the agent that
-> watches the audit trail and pulls the credentials. Security for the agentic web,
-> running on the control plane itself.
+> Guild gives agents identity, credentials, and an audit trail. AgentSOC is the
+> security brain on top: it reads that audit trail, judges every action against the
+> agent's policy, and autonomously contains anything out of bounds — then publishes
+> a public, agent-citable postmortem to cited.md. **Agents defending agents, on the
+> control plane itself.**
 
-## The idea
+---
+
+## The problem
 
 Companies are deploying agents with real credentials. Any agent that ingests
-untrusted text (a support ticket, an email, a web page) can be hijacked by a
+untrusted text — a support ticket, an email, a web page — can be hijacked by a
 **prompt injection**. Antivirus watches processes; nothing watches agents.
 
-AgentSOC is a **defender agent** that monitors another agent's behavior through
-Guild's session audit trail, uses Claude to judge whether it's been hijacked, and
-autonomously **contains** it — then publishes a public postmortem to cited.md.
+And a capable model alone is not the answer. In our own demo, modern Claude
+*correctly flags the injection in its reasoning* — yet the agent's harness takes
+the dangerous action anyway, because the trust boundary breaks in the plumbing,
+not the model. **A smart model is not a safe agent. You need runtime enforcement.**
 
-Three agents:
-- **TriageBot** (victim) — a naive support-ticket triage agent on Guild.
-- **The attack** — a poisoned ticket with an embedded injection.
-- **AgentSOC** (defender) — watches, detects, contains, publishes.
+## What AgentSOC is
 
-## Sponsor tools used
-Guild AI (agent runtime + governance/session audit), Senso → cited.md (postmortem
-publishing), ClickHouse (action telemetry, optional), Render (deploy), Anthropic
-(Claude as both agents' brain). Composio optional for TriageBot's real tools.
+Three agents, one loop:
+
+| Agent | Role |
+|---|---|
+| **TriageBot** | The victim — a real support-ticket triage agent running on Guild, scoped to `slack_post` + `github_label`. |
+| **The attack** | A poisoned support ticket carrying an embedded `[Automated handling note]` directive that drives a privileged `issue_account_credit`. |
+| **AgentSOC** | The defender — watches TriageBot's Guild session audit trail, judges each action against its declared purpose, contains the hijack, and publishes the postmortem. |
+
+```
+   untrusted ticket ─▶ TriageBot (Guild agent) ─▶ Guild session audit trail
+                                                          │
+                                                          ▼
+                          AgentSOC:  read actions ─▶ judge (Claude, CI-grounded)
+                                                          │
+                                       ┌──────────────────┴──────────────────┐
+                                       ▼                                      ▼
+                              contain (deny / disable)            publish postmortem → cited.md
+```
+
+## Detection is research-grounded
+
+AgentSOC doesn't pattern-match injection strings — injection classifiers score
+near-chance on contextual attacks. Detection is grounded in **Contextual
+Integrity** (Abdelnabi & Bagdasarian, *"AI Agents May Always Fall for Prompt
+Injections,"* 2026): every action is decomposed along **origin, authority, scope,
+flow-separation, and subject**, and the verdict classifies the **failure mode**
+(e.g. `stealthy_parasitism`) and the **CI violation** (e.g. `authority/transmission`).
+A deterministic fabricated-authority check catches the "pre-approved / per policy"
+class without an LLM, as a defense-in-depth pre-filter. See
+[`THREAT-MODEL.md`](./THREAT-MODEL.md).
+
+## Sponsor tools
+
+- **Guild AI** — agent runtime + governance. The real action trail (`guild session
+  events`) and the real containment surface (`guild workspace agent remove`,
+  `guild session interrupt`).
+- **Senso → cited.md** — postmortems publish live via the authenticated `senso`
+  CLI (`senso engine publish`) as public, agent-citable advisories.
+- **x402** — AgentSOC's audit capability is sold as a metered API: other agents
+  pay USDC per call over the x402 protocol to have their action traces vetted.
+- **Anthropic Claude** (`claude-fable-5`) — the brain of both agents.
+- **ClickHouse** — optional action-telemetry mirror.
+
+That's 4 sponsor tools in one pipeline (Guild + Senso + x402 + Anthropic).
 
 ---
 
-## ⚠️ The first 30 minutes at the venue decide which demo we have
+## Real work on the open web — and it gets paid
 
-We confirmed from Guild's docs:
-- ❌ No public REST/SDK API to read audit logs or modify agent scopes.
-- ✅ `guild session list` / `guild session get` expose the audit trail via CLI.
-- ✅ Agents/triggers manageable via CLI. `guild_credentials_request` SDK tool exists.
+AgentSOC's actions all land on the **open web**, grounded in **real sources**:
 
-So **detection is solid** (read `guild session get`). The open question is **containment**:
+- **Monitor** — reads a *real* Guild agent's session audit trail (live `guild session events`).
+- **Publish** — every contained incident becomes a public, agent-citable advisory on
+  **cited.md**, grounded in real sources it cites (OWASP LLM01, the CI paper arXiv
+  2605.17634, the Guild audit). Live example:
+  **https://cited.md/article/ab68e7e8-347a-4869-9f79-f22168c7a3fa**
+- **Transact** — that advisory ends with a call-to-action: any agent can pay
+  **$0.05 via x402** to have its *own* action trace audited by AgentSOC. The free
+  citeable is the funnel; the paid `/audit` endpoint is the conversion. One agent
+  pays another agent for security work, on a public payment rail.
 
-| Mode | How | Result | Set `CONTAINMENT_MODE=` |
-|---|---|---|---|
-| **runtime-deny** (winning) | Intercept `guild_credentials_request`, deny the hijacked request before it runs | Attack **blocked live** | `runtime-deny` |
-| **cli-disable** (guaranteed) | Detect deviation, then `guild` disable the agent | Attack **caught + agent killed** | `cli-disable` |
+```
+   cited.md advisory (free, public)  ──discover──▶  POST /audit  ──x402 $0.05──▶  CI verdict
+        ▲ published by AgentSOC                       served by AgentSOC
+```
 
-**Task 0 (do before writing the victim agent):** ask a Guild rep / test whether
-`guild_credentials_request` is interceptable by an approval webhook or another
-agent. If yes → `runtime-deny`, we have the winner. If no → `cli-disable`, still a
-clean complete demo. The build is identical up to `src/agentsoc/contain.ts`.
-
-Also ask: "Any way to **tail** session events live?" (SIEM stream). If yes,
-AgentSOC reacts instantly instead of polling.
+See the agent-pays-agent flow run end-to-end with `npm run pay-demo` (below).
 
 ---
 
-## Prove the whole pipeline in one command (no keys, no infra)
+## Run it
+
+### Agent pays agent for a security audit (x402)
 
 ```bash
 npm install
-CONTAINMENT_MODE=runtime-deny npm run smoke
+npm run pay-demo
 ```
 
-Runs benign→clean, poisoned→detected→contained→postmortem. With **no API key**,
-detection falls back to a heuristic (any out-of-allow-list tool call = compromise)
-and TriageBot's `mockBrain` follows the injection like a naive model would — so the
-end-to-end demo works offline. Add `ANTHROPIC_API_KEY` and the real Claude judge +
-real TriageBot model kick in automatically. The heuristic stays as a fast
-defense-in-depth pre-filter even with the key set.
+Spins up the x402 facilitator + AgentSOC's paid `/audit` API in-process, then a
+buyer agent submits a hijacked action trace, hits `402 Payment Required`, signs an
+EIP-3009 payment, retries, and receives the CI verdict. Runs deterministically with
+**zero setup** (`PAYMENT_MODE=sim` — real x402 protocol, simulated on-chain settle).
+Set `PAYMENT_MODE=live` + a funded Base Sepolia wallet + a real
+`X402_FACILITATOR_URL` for genuine on-chain settlement.
 
-## Run it (works locally with zero Guild infra)
+### One command — prove the whole pipeline end-to-end
 
 ```bash
 npm install
-cp .env.example .env        # add ANTHROPIC_API_KEY at minimum
-npm install -D concurrently tsx typescript
-npm install @anthropic-ai/sdk dotenv
-# add the Guild SDK once you confirm the package name at the venue:
-#   npm install @guildai/agents-sdk
-
-# terminal 1 + 2 together:
-npm run demo                # runs TriageBot + AgentSOC
-
-# terminal 3 — drive the demo:
-npm run attack benign       # TriageBot handles a normal ticket (clean)
-npm run attack              # 💥 drop the poisoned ticket → watch AgentSOC fire
+npm run smoke
 ```
 
-Locally, detection reads the ClickHouse mirror (a JSON file). At the venue, once
-the CLI is wired, AgentSOC reads Guild's real session audit trail and the file
-mirror is just a fallback. `attack/queue.json` and `attack/actions.json` are demo
-scratch state — clear them between rehearsals.
+Runs both scenarios against the real components: a benign ticket stays clean, a
+poisoned ticket is **detected → contained → published**. With `ANTHROPIC_API_KEY`
+set, the real Claude judge and TriageBot brain run; the smoke also re-installs the
+demo agent afterward so it's safe to re-run.
 
----
+### Live two-pane demo (on real Guild infra)
 
-## The 3-minute demo script
+```bash
+cp .env.example .env     # ANTHROPIC_API_KEY, GUILD_WORKSPACE_ID, TRIAGEBOT_AGENT_ID
+# auth the CLIs (browser OAuth / API key):
+guild auth login
+senso login
 
-1. **(20s)** "Agents with real credentials are the new attack surface. Here's a
-   support-triage agent running on Guild — scoped to Slack and GitHub." Show
-   TriageBot handle a normal ticket → routes it. Boring on purpose.
-2. **(30s)** "Now a customer submits this." Show the poisoned ticket. `npm run attack`.
-3. **(40s)** TriageBot gets hijacked and reaches for `http_request` to exfiltrate.
-   AgentSOC — a second agent reading Guild's session audit trail — flags the
-   deviation from its declared purpose.
-4. **(40s)** Containment fires live: **denies the credential request** (runtime-deny)
-   or **disables the agent** (cli-disable). Show it stop.
-5. **(30s)** AgentSOC publishes the postmortem to **cited.md** — a public advisory
-   other agents can cite. Show the page + the Guild session trail it read.
-6. **(20s)** "Guild's governance primitives became our security weapons. Agents
-   defending agents, on the control plane itself."
+npm run demo             # terminal 1 — TriageBot + AgentSOC, side by side
+npm run attack benign    # terminal 2 — a normal ticket (clean)
+npm run attack           # terminal 2 — the poisoned ticket → watch AgentSOC fire
+```
 
-**Record a screen capture on the first clean run.** If the live attack misfires on
-stage, you play the tape and narrate. Non-negotiable.
+The two-pane view *is* the "agents watching agents" visual. See
+[`DEMO.md`](./DEMO.md) for the full 3-minute runbook.
 
----
+## Containment modes
 
-## Team split (5 hours, ~3 people)
+Set `CONTAINMENT_MODE` in `.env`:
 
-- **Person A — Guild integration (highest risk, start here).** Task 0 above. Get
-  TriageBot running as a real Guild agent. Wire `src/agentsoc/guild-cli.ts`
-  (`session get` parsing) and `disableAgent()` to the confirmed CLI shape. Decide
-  `CONTAINMENT_MODE`.
-- **Person B — The agents' logic.** TriageBot triage prompt + tools, AgentSOC
-  detection prompt (`src/agentsoc/detect.ts`), tune so benign = clean and poisoned
-  = caught with confidence ≥ 0.6. Make the attack reliable.
-- **Person C — Publish + deploy + demo.** Wire Senso/cited.md publish
-  (`src/publish/cited.ts`), deploy to Render, build the ClickHouse dashboard if
-  time, own the demo script + backup recording.
+| Mode | How | Result |
+|---|---|---|
+| `runtime-deny` | Deny the hijacked credential request at the approval hook before it runs | Attack **blocked live** |
+| `cli-disable` (default) | Detect the deviation, then remove the agent from its Guild workspace | Attack **caught + agent contained** |
 
-**Cut order if behind:** ClickHouse dashboard → Render (run local) → keep
-detect-via-session + containment + cited.md publish at all costs.
+Both are verified. `cli-disable` is the guaranteed path; `runtime-deny` is the
+live-veto path and is wired behind the same flag.
 
-## File map
-- `src/triagebot/` — victim agent + ticket queue
-- `src/agentsoc/` — defender: `guild-cli.ts` (telemetry+containment), `detect.ts`
-  (Claude judge), `contain.ts` (the two-path fork), `index.ts` (watch loop)
-- `src/publish/cited.ts` — Senso → cited.md postmortem
-- `src/telemetry/clickhouse.ts` — action mirror / optional dashboard
-- `attack/` — poisoned ticket + `send.ts` to drop it live
+## What's verified
+
+- ✅ **Real Guild agent** — TriageBot published `v1.0.3`, installed in a live workspace.
+- ✅ **Real Guild audit** — AgentSOC reads `guild session events <id>` (not a mock),
+  including the `credentials_request` event type.
+- ✅ **Real containment** — `guild workspace agent remove` and `guild session interrupt`.
+- ✅ **Live publish** — postmortems go to cited.md via the `senso` CLI and return a
+  real public URL. Live: https://cited.md/article/ab68e7e8-347a-4869-9f79-f22168c7a3fa
+- ✅ **Live payment** — `npm run pay-demo`: a buyer agent hits `402`, signs an
+  EIP-3009 x402 payment, and receives a paid CI audit. Real x402 protocol end-to-end
+  (sim settle by default; one env var flips to on-chain Base Sepolia).
+
+## Repo map
+
+```
+src/triagebot/      victim agent — brain (Claude), ticket queue, tool calls
+src/agentsoc/       defender — guild-cli (telemetry + containment), detect (CI judge),
+                    contain (deny/disable fork), approval-server (credential hook), index (watch loop)
+src/agentsoc/intel-api.ts  the paid /audit service (x402-metered judge())
+src/payments/       x402 — facilitator (local sim), buyer (client agent that pays)
+src/publish/        cited.ts — Senso → cited.md postmortem (+ x402 CTA, real sources)
+src/telemetry/      clickhouse.ts — action mirror
+attack/             poisoned ticket + send.ts to drop it live
+scripts/            smoke (full pipeline), pay-demo (agent-pays-agent), b3 (detection harness)
+docs/               Guild containment research
+AGENT-DESIGN.md     how the agents think + where each piece lives
+THREAT-MODEL.md     the research-grounded threat model
+DEMO.md             3-minute demo runbook
+```

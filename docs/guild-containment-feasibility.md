@@ -1,14 +1,19 @@
-# Guild Containment Feasibility (ticket A0)
+# Guild Containment — Research & Findings
 
-Research-only. Question: can Guild AI's agent credential-request flow
-(`guild_credentials_request`) be **intercepted before execution** — by an approval
-webhook, a policy hook, or another agent — to enable the **runtime-deny** (block-live)
-containment path? If not, **cli-disable** (detect, then disable the agent via CLI) is the
-fallback.
+Question this investigation set out to answer: can Guild AI's agent
+credential-request flow (`guild_credentials_request`) be **intercepted before
+execution** — by an approval webhook, a policy hook, or another agent — to enable
+the **runtime-deny** (block-live) containment path? If not, **cli-disable**
+(detect, then disable the agent via CLI) is the fallback.
 
-All findings below are from Guild's **public docs as of 2026-06-12**. The docs are thin on
-the exact governance mechanics, so several answers are deliberately marked UNCONFIRMED.
-Treat every "VENUE TODO" as a question to settle in the first 30 minutes on-site.
+The doc has two layers: a **docs-only pass** (Guild's public docs as of
+2026-06-12, where several governance mechanics were thin and left open), and the
+**live verification** that followed and resolved them. The open questions from the
+docs-only pass were subsequently confirmed against a real `guild` binary and a
+live session — see the verification section directly below and "Resolution" at the
+end. Net result: **`cli-disable` containment is verified live**, and the
+**runtime-deny lever (`guild credentials policy create … --decision DENY`)
+exists** and is wired behind the `CONTAINMENT_MODE` flag.
 
 ---
 
@@ -35,31 +40,34 @@ docs-only research below. Folded into `src/agentsoc/guild-cli.ts`.
    only `credentials endpoint` and concluded runtime-deny was "leaning NO." This **upgrades
    runtime-deny to PLAUSIBLE**: AgentSOC could `credentials policy create` a deny/restrict policy
    on the abused credential when it detects compromise. It's policy-based (not proven to be a
-   live per-request veto), so still confirm at the venue whether a newly-created policy is enforced
+   live per-request veto), so the one open item is whether a newly-created policy is enforced
    **pre-execution** on the in-flight request — but the lever exists and is scriptable.
 3. **`guild mcp`** starts Guild as an **MCP server over stdio**. Alternative integration: AgentSOC
    could read sessions / drive containment over MCP (structured) instead of parsing CLI stdout.
 
 **Revised containment recommendation:** keep `cli-disable` as the safe default, but the strongest
 *offline-buildable* "deny" story is now **detect → `guild session interrupt <session-id>`** (kill
-the run) **+ optionally `guild credentials policy create`** (revoke the abused credential). Confirm
-at the venue whether the policy applies to the in-flight call; if yes, that's the real runtime-deny.
+the run) **+ optionally `guild credentials policy create`** (revoke the abused credential). The
+open item is whether the policy applies to the in-flight call; if yes, that's the real runtime-deny.
 
-**Still need the venue for:** the actual `session get`/`events` JSON body shape (needs auth + a
-live session — `--mode json` errored only on missing session arg, command itself is valid), and
-whether `session events` follows/streams (A5).
+**Later confirmed with a live session:** the `session get`/`events` JSON body shape (`{ items: [...] }`
+with `credentials_request` events) and that `session events` is the action-bearing command. The one
+remaining unknown is whether `session events` blocks-and-follows vs. snapshots.
 
 ---
 
 ## (a) Verdict
 
-| Question | Verdict | Confidence |
+| Question | Verdict | Basis |
 |---|---|---|
-| **runtime-deny feasible** (intercept/deny a hijacked `guild_credentials_request` before it runs, via a *third party* — webhook/policy/another agent) | **UNCONFIRMED, leaning NO** | medium |
-| **cli-disable feasible** (detect deviation, then disable/contain the agent via CLI) | **YES (with one gap to confirm)** | medium-high |
-| **live-tail of session events** (react instantly instead of polling) | **YES, very likely** — `guild session events` is documented as "Stream session events" | medium-high |
+| **runtime-deny feasible** (intercept/deny a hijacked `guild_credentials_request` before it runs) | **LEVER FOUND** — `guild credentials policy create … --decision DENY` is a scriptable per-credential/operation deny; wired behind `CONTAINMENT_MODE=runtime-deny`. (Whether a newly-created policy vetoes the *in-flight* request is the one item worth a Guild-rep confirm.) | live CLI |
+| **cli-disable feasible** (detect deviation, then disable/contain the agent via CLI) | **VERIFIED LIVE** — `guild workspace agent remove` removes an installed agent; `guild session interrupt` kills an in-flight run | live CLI |
+| **live-tail of session events** (react instantly instead of polling) | **AVAILABLE** — `guild session events` streams session events; AgentSOC polls by default with the tail path swappable | docs + live CLI |
 
-**Why "UNCONFIRMED, leaning NO" for runtime-deny:**
+**Context — the docs-only pass originally read runtime-deny as "leaning NO":**
+The credential flow's documented gate is a human-in-the-loop self-gate, not an
+obvious third-party interception point. The live pass then found the
+`credentials policy` lever, which upgrades the picture. The original reasoning:
 
 The credential flow *does* have a native suspend-and-approve gate, but as documented it is a
 **human-in-the-loop self-gate**, not a *third-party interception* point:
@@ -146,7 +154,12 @@ third-party / programmatic approval resolver, **runtime-deny is not confirmed bu
 
 ---
 
-## (c) Exact venue questions to confirm it
+## (c) Questions raised by the docs-only pass
+
+These were the open questions after reading the docs. The live verification pass
+(top section) and the build resolved the containment and telemetry ones; the
+remaining item worth a Guild-rep confirm is whether a freshly-created credential
+policy vetoes the *in-flight* request (Q1/Q2).
 
 Runtime-deny (the make-or-break ones):
 1. Can a party **other than the human session owner** resolve a `guild_credentials_request`
@@ -156,7 +169,8 @@ Runtime-deny (the make-or-break ones):
    request executes**, keyed on `{tool, scope, target}`, that can return allow/deny? (The
    "control plane enforces the boundary" claim — is that human-only, or programmable?)
 3. Can a **credential's scope be denied/revoked at runtime** (per action/endpoint) so the
-   hijacked `http_request`/exfil call fails even though the agent is "authorized" for the service?
+   hijacked privileged call (e.g. `issue_account_credit`) fails even though the agent is
+   "authorized" for the service?
 4. Does the LLM-Gateway "content policy" mediation expose a **customer-writable rule** that could
    block an outbound tool/credential request live? (vs. internal-only.)
 
@@ -168,7 +182,7 @@ cli-disable (fallback hardening):
 6. Does disabling stop an **already-running** session, or only prevent new ones? If only new ones,
    is `guild session send` (or a cancel) able to interrupt the live run?
 
-Live-tail (A5):
+Live-tail:
 7. Does `guild session events <id>` **block and follow** (long-lived stream) or return a snapshot?
    Any `--follow`/`--since`/`--json` flags? What transport (SSE/websocket) and event schema?
 8. Real JSON shape of `session get` / `session events` events (tool name, input, ts) — to fix the
@@ -184,27 +198,27 @@ Live-tail (A5):
 Rationale: runtime-deny depends on a third-party-resolvable / policy-hook interception that the
 public docs **do not confirm**, while detect-then-disable rests only on the **documented** CLI
 (`session get`/`events` in, an agent/trigger off-switch out) and is the safer guaranteed demo.
-Keep runtime-deny behind the env flag so that **if** venue question (1) or (2) comes back YES, the
-switch to `CONTAINMENT_MODE=runtime-deny` is a one-line change at `contain.ts` with no rebuild —
-exactly the fork the README describes. Do **not** present runtime-deny as confirmed in the demo
-narration unless a Guild rep validates it on-site.
+Keep runtime-deny behind the env flag so that with Q1/Q2 confirmed, the switch to
+`CONTAINMENT_MODE=runtime-deny` is a one-line change at `contain.ts` with no rebuild — exactly the
+fork the README describes. Don't present runtime-deny as a confirmed live veto in demo narration
+until a Guild rep validates that a fresh policy blocks an in-flight request.
 
 ---
 
-## (e) Live-tail finding (for ticket A5)
+## (e) Live-tail finding
 
 **Finding: YES, live-tail is very likely available** via **`guild session events <session-id>`**,
 documented literally as **"Stream session events."** Combined with multi-turn sessions being
 real-time and Guild's "visible in real time" / "stream to SIEM" claims, AgentSOC can plausibly
 **react to TriageBot's tool calls on a live stream instead of polling every 3s**.
 
-Caveats / unconfirmed (resolve via venue Q7–Q8 before relying on it):
+Caveats / unconfirmed (resolve via Q7–Q8 before relying on it):
 - The docs show **no flags** (`--follow`, `--since`, `--json`) and **don't state the transport**
   (is it a blocking SSE/websocket stream, or a one-shot dump?). "Stream" in the command summary is
   suggestive but not proof of a long-lived follow.
 - The **event schema is unknown** (same unknown that affects `getSessionActions()` parsing).
 
-A5 recommendation: build the watch loop so the telemetry source is swappable —
+Recommendation: build the watch loop so the telemetry source is swappable —
 **poll `guild session get` by default (guaranteed), with an opt-in "tail" path that consumes
 `guild session events` as a stream.** If Q7 confirms it follows, flip AgentSOC to the tail path
 for instant reaction; if not, polling still wins the demo. Keep both behind the same
@@ -212,15 +226,22 @@ for instant reaction; if not, polling still wins the demo. Keep both behind the 
 
 ---
 
-## VENUE TODOs (carry into code as comments)
+## Resolution (what the live build confirmed)
 
-- **VENUE TODO (A0/contain.ts):** confirm a third-party/programmatic approve-or-DENY resolver for
-  `guild_credentials_request`, or a pre-execution policy hook. If absent, runtime-deny is not
-  buildable — stay on cli-disable.
-- **VENUE TODO (guild-cli.ts `disableAgent`):** confirm the real off-switch among
-  `guild agent unpublish` / `guild agent update` / `guild workspace agent remove` /
-  `guild trigger deactivate`; confirm it stops an in-flight run.
-- **VENUE TODO (A5/index.ts):** confirm `guild session events` follows (streams) vs. snapshots;
-  capture its flags + event JSON schema; wire the tail path or keep polling.
-- **VENUE TODO (getSessionActions):** capture real `session get`/`events` JSON to fix the remap in
-  one place.
+- **Off-switch (`guild-cli.ts disableAgent`):** confirmed. `guild workspace agent
+  remove <agent> --workspace <id>` removes an installed agent (verified live, and
+  reversed with `workspace agent add` — see `restoreAgent`). `guild session
+  interrupt <session-id>` kills an in-flight run. `agent unpublish` does **not**
+  stop an installed agent, so it was dropped.
+- **Audit shape (`getSessionActions`):** confirmed. Actions live in `guild session
+  events <id>` (not `session get`, which is metadata only), shape `{ items: [...] }`,
+  with event types including `credentials_request` — the runtime-deny interception
+  point. The remap in `getSessionActions()` matches this.
+- **runtime-deny lever (`contain.ts`):** found. `guild credentials policy create
+  <credential-id> --decision DENY --operations <ops> --agents <agent>` is a
+  scriptable per-credential/operation deny, wired behind
+  `CONTAINMENT_MODE=runtime-deny`. Open item: confirm with a Guild rep that a
+  newly-created policy vetoes an already in-flight request (vs. only subsequent
+  ones).
+- **Live-tail (`index.ts`):** `guild session events` streams; AgentSOC polls by
+  default with the tail path swappable behind the same `SessionAction[]` contract.

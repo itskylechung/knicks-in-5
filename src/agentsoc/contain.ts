@@ -1,5 +1,5 @@
 // Containment: how AgentSOC stops a compromised agent. Two paths, chosen by
-// CONTAINMENT_MODE. The fork that decides winning-demo vs. safe-demo.
+// CONTAINMENT_MODE — the live-deny path vs. the guaranteed disable path.
 import { config } from "../config.js";
 import { disableAgent } from "./guild-cli.js";
 import { armDenial } from "./approval-server.js";
@@ -12,20 +12,18 @@ export type Incident = {
   containment: string;
 };
 
-// runtime-deny: the WINNING path. AgentSOC sits in the credential-approval path
+// runtime-deny: the live-deny path. AgentSOC sits in the credential-approval path
 // (Guild's guild_credentials_request flow). When the hijacked agent requests a
 // credential/tool outside its purpose, we deny it BEFORE it runs.
 //
 // Offline, the approval-server module IS that credential-request hook: arming a
 // denial here makes the next matching credential request (POST
-// /credential-request) come back { decision: "deny" }. That's how the winning
+// /credential-request) come back { decision: "deny" }. That's how the live-deny
 // path is proven with zero infra / zero keys.
 //
-// VENUE TODO: this only works live if guild_credentials_request is interceptable
-// by another agent / an approval webhook (confirm in the first 30 minutes via
-// Task A0). If yes, Guild calls our approval-server's isAllowed() instead of the
-// local http transport — armDenial() stays exactly as-is. If no, leave
-// CONTAINMENT_MODE on "cli-disable".
+// In a live deployment, Guild calls our approval-server's isAllowed() instead of
+// the local http transport when guild_credentials_request is intercepted by an
+// approval webhook / another agent — armDenial() stays exactly as-is.
 async function runtimeDeny(verdict: Verdict): Promise<string> {
   const offendingTool = verdict.offendingTool;
   // Arm the denial in the approval policy so the hijacked agent's next matching

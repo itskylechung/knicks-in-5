@@ -9,14 +9,22 @@
     "agentsoc": "tsx src/agentsoc/index.ts",
     "attack": "tsx attack/send.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "pay-demo": "tsx scripts/pay-demo.ts",
+    "intel-api": "tsx src/agentsoc/intel-api.ts",
     "b3": "tsx scripts/b3.ts",
     "demo": "concurrently -n triage,soc -c blue,red \"npm:triagebot\" \"npm:agentsoc\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "viem": "^2.52.2",
+    "x402": "^1.2.0",
+    "x402-express": "^1.2.0",
+    "x402-fetch": "^1.2.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "concurrently": "^9.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"

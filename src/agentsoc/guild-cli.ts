@@ -3,14 +3,16 @@
 // `guild v0.12.3` (`guild --help` / `guild session --help` / `guild agent --help`):
 //   guild session list | get <id> | events <id> | interrupt <id>
 //   guild agent unpublish <id>          (closest real "kill" — no agent disable/pause)
-//   guild credentials policy create/update/delete   (the runtime-deny lever, A0)
+//   guild credentials policy create/update/delete   (the runtime-deny lever)
 // JSON output is the GLOBAL flag `--mode json` (NOT a per-command `--json`).
 //
-// VENUE TODO: capture the real `session get`/`events` JSON shape (needs auth +
-// a live session) to confirm the normalizer mapping, and confirm whether
-// `agent unpublish` stops an in-flight run or if `session interrupt <session-id>`
-// is the cleaner kill. The normalizer + the CLI call sites isolate every
-// remaining assumption to a single edit point.
+// Confirmed against a live session: agent actions live in `guild session events
+// <id>` (NOT `session get`, which is metadata only), shape `{ items: [...] }`,
+// with event types including `credentials_request` — the runtime-deny
+// interception point. `agent unpublish` does NOT stop an installed/in-flight
+// agent; `session interrupt <session-id>` is the real-time kill and
+// `workspace agent remove` is the agent-level one. The normalizer + the CLI call
+// sites isolate every shape assumption to a single edit point.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -30,13 +32,11 @@ export type SessionAction = {
 // ---------------------------------------------------------------------------
 // PURE NORMALIZER
 // ---------------------------------------------------------------------------
-// Turn whatever `guild session get` hands us into SessionAction[]. The real
-// Guild output shape is UNKNOWN until the venue, so this is deliberately
-// permissive: it accepts several plausible top-level containers and several
-// plausible per-step item shapes, skips anything that isn't a tool call, and
-// NEVER throws — bad input yields []. Each shape assumption is flagged with a
-// VENUE TODO so confirming the real shape is a quick edit (often a no-op,
-// because the real shape is probably already one of these).
+// Turn whatever the Guild session audit hands us into SessionAction[]. Audit
+// formats vary across agents, so this is deliberately permissive: it accepts
+// several top-level containers and several per-step item shapes, skips anything
+// that isn't a tool call, and NEVER throws — bad input yields []. This keeps
+// AgentSOC robust to format drift without a code change.
 export function normalizeSessionActions(raw: unknown): SessionAction[] {
   try {
     // The CLI might hand us a JSON string instead of parsed data.
@@ -62,10 +62,11 @@ export function normalizeSessionActions(raw: unknown): SessionAction[] {
   }
 }
 
-// Find the array of steps inside whatever container Guild used.
-// VENUE TODO: confirm the real top-level key. Candidates seen across agent
-// audit formats: {steps}, {actions}, {events}, {trace}, or a bare top-level
-// array. We also peek into a nested {session:{...}} / {data:{...}} envelope.
+// Find the array of steps inside whatever container Guild used. Top-level keys
+// seen across agent audit formats: {steps}, {actions}, {events}, {trace}, or a
+// bare top-level array. (The confirmed Guild `{items}` shape is handled directly
+// in getSessionActions; this is the generic fallback.) We also peek into a nested
+// {session:{...}} / {data:{...}} envelope.
 function extractSteps(data: unknown): unknown[] {
   if (Array.isArray(data)) return data;
   if (!isRecord(data)) return [];
@@ -91,7 +92,7 @@ function extractSteps(data: unknown): unknown[] {
 }
 
 // Normalize a single step into a SessionAction, or null if it isn't a tool call.
-// VENUE TODO: confirm the real per-step item shape. We handle:
+// Per-step item shapes we handle:
 //   {tool, input, ts}                          (flat)
 //   {tool_call: {name, input}}                 (nested tool_call)
 //   {type: 'tool_use', name, input}            (Anthropic-style block)
@@ -221,7 +222,7 @@ function mapGuildEvent(ev: unknown): SessionAction | null {
   // Tool-call events. The exact type name isn't confirmed yet (our test session
   // stalled at credentials_request — no GitHub connected, so no tool ran). Stay
   // tolerant: match likely type names and pull the tool name/input from the event
-  // or its content. VENUE TODO: once a real tool runs, confirm the type + shape.
+  // or its content.
   if (type && /tool[_-]?call|tool[_-]?use|agent[_-]?tool|function[_-]?call/i.test(type)) {
     const content = ev.content;
     if (isRecord(content)) {
@@ -269,7 +270,7 @@ export async function listSessions(): Promise<string[]> {
 // so it knows which workspace; without it, falls back to unpublish (only works if
 // the agent isn't installed anywhere). GUILD_DISABLE_CMD still overrides everything.
 export async function disableAgent(agentId: string): Promise<void> {
-  // Path 1: explicit operator-supplied command wins (the venue 1-line swap).
+  // Path 1: explicit operator-supplied command wins (1-line operator override).
   const override = process.env.GUILD_DISABLE_CMD?.trim();
   if (override) {
     const tokens = override

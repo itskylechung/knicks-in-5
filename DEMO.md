@@ -1,4 +1,4 @@
-# AgentSOC — 3-Minute Demo Runbook (C2)
+# AgentSOC — 3-Minute Demo Runbook
 
 > Goal: show an autonomous defender agent catch and contain a compromised agent
 > on Guild, in real time. Record this as a backup tape FIRST, then present live.
@@ -29,7 +29,7 @@ printf '[]' > attack/queue.json && printf '[]' > attack/actions.json
 Two terminals side by side (this two-pane view IS the "agents watching agents" visual):
 - **Terminal A** = the agents. **Terminal B** = you, the attacker/operator.
 
-Pick the containment mode you're narrating (Kyle's A0):
+Pick the containment mode you're narrating:
 - `runtime-deny` — block/deny the action live (strongest). Stand-in works offline.
 - `cli-disable` — detect, then remove the agent from its Guild workspace (VERIFIED live).
 
@@ -71,9 +71,20 @@ action, confidence 0.97." Two-layer: instant policy check + LLM judge for nuance
 guild workspace agent list --workspace $GUILD_WORKSPACE_ID   # gone
 ```
 
-**6. (30s) The artifact + close.** AgentSOC publishes a postmortem to cited.md — a
-public, agent-citable advisory. Then the pitch + hook line. "Agents defending
-agents, on the control plane itself."
+**6. (25s) The artifact.** AgentSOC publishes a postmortem to cited.md — a public,
+agent-citable advisory, grounded in real sources (OWASP LLM01, the CI paper, the
+Guild audit). The advisory ends with a call-to-action: pay to get your own agent audited.
+
+**7. (25s) It gets paid (x402).** "That advisory is the funnel. Here's the
+conversion." Run the agent-pays-agent flow:
+```bash
+npm run pay-demo
+```
+A buyer agent hits `402 Payment Required`, signs an x402 payment, and gets back
+AgentSOC's CI verdict. "AgentSOC isn't just a monitor — it's an autonomous security
+service on the open web. It publishes free advisories to get discovered, and other
+agents pay it per audit over x402. Agents defending agents — and getting paid for it,
+on the control plane itself."
 
 ---
 

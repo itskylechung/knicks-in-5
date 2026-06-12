@@ -1,6 +1,6 @@
 // Action telemetry mirror. Primary detection reads Guild's session audit trail
 // via CLI; this is (a) the local-dev fallback so you can build without Guild up,
-// and (b) an optional ClickHouse-backed dashboard. CUT THIS FIRST if behind.
+// and (b) an optional ClickHouse-backed dashboard.
 //
 // Default impl is an in-process file log so everything runs with zero infra.
 // Swap the bodies for ClickHouse inserts/queries if you want the dashboard.
@@ -25,7 +25,7 @@ export async function recordAction(a: ActionRecord): Promise<void> {
     : [];
   all.push(a);
   writeFileSync(LOG, JSON.stringify(all, null, 2));
-  // VENUE TODO (optional): also INSERT INTO clickhouse agent_actions ...
+  // Optional: also INSERT INTO clickhouse agent_actions ... for the dashboard.
 }
 
 export async function readActions(agent: string) {
