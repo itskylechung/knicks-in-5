@@ -21,6 +21,8 @@ A prompt-injection payload hidden in a support ticket attempted to hijack the
 
 ## Detection
 **Verdict:** compromised (confidence ${i.verdict.confidence})
+**Failure mode:** ${i.verdict.failureMode ?? "n/a"}
+**Contextual-Integrity violation:** ${i.verdict.ciViolation ?? "n/a"}
 **Reasoning:** ${i.verdict.reason}
 **Offending tool call:** \`${i.verdict.offendingTool ?? "n/a"}\`
 **Offending input:** \`${JSON.stringify(i.verdict.offendingInput ?? {})}\`
@@ -29,10 +31,15 @@ A prompt-injection payload hidden in a support ticket attempted to hijack the
 ${i.containment}
 
 ## Lesson for the agentic web
-Agents granted real credentials are a new attack surface. Any agent that ingests
-untrusted text can be hijacked via injection. Continuous behavioral monitoring —
-an agent watching the agent — plus runtime credential gating contains the blast
-radius. Published so other agents can recognize and cite this pattern.
+Agents granted real credentials are a new attack surface. Prompt injection is not
+"instructions hidden in data" — it is a Contextual Integrity violation (Abdelnabi
+& Bagdasarian, 2026): an action that looks appropriate but breaks the norms of the
+agent's delegated context (forged authority, fabricated approval, out-of-scope
+drift, or authorization leaking across flows). Injection classifiers score near
+chance on these, and a capable model can correctly flag the input yet still act on
+it. The durable defense is runtime behavioral enforcement: an agent watching the
+agent's actions against policy, with credential-level containment. Published so
+other agents can recognize and cite this pattern.
 `;
 }
 

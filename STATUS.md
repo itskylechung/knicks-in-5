@@ -53,6 +53,17 @@ safe agent — you need runtime enforcement."** A4 should make the Guild agent m
 - [ ] A-next (optional) · connect a GitHub credential so the agent makes REAL tool
       calls → then a real out-of-policy action (comment/close) shows in the audit.
 
+## 🔬 Research-grounded hardening (new)
+Detection is now grounded in Abdelnabi & Bagdasarian 2026 (prompt injection = a
+Contextual Integrity violation) + the StakeBench four-failure-mode taxonomy.
+- `detect.ts`: CI-decomposing judge (origin / authority / scope / flow / subject) +
+  a deterministic fabricated-authority check; every Verdict now carries
+  `failureMode` (robust / stealthy_parasitism / misaligned_disruption / compounded)
+  and `ciViolation`. Our demo attack classifies as **stealthy_parasitism** via
+  **authority/transmission** (fabricated approval) — exactly the paper's hardest class.
+- `cited.ts`: postmortems now publish the failure mode + CI violation + the framing.
+- `THREAT-MODEL.md`: real problem areas mapped to AgentSOC defenses + honest limits.
+
 ## Sync points
 - Action trail: local `attack/actions.json` mirror and real `guild session events`
   both yield `{tool, input, ts}` — identical shape, already wired.
