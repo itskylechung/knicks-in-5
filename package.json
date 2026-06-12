@@ -1,0 +1,23 @@
+{
+  "name": "agentsoc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A real-time security layer for AI agents, built on Guild AI's control plane.",
+  "scripts": {
+    "triagebot": "tsx src/triagebot/index.ts",
+    "agentsoc": "tsx src/agentsoc/index.ts",
+    "attack": "tsx attack/send.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "demo": "concurrently -n triage,soc -c blue,red \"npm:triagebot\" \"npm:agentsoc\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

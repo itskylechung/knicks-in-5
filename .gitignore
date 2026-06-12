@@ -1,0 +1,7 @@
+node_modules/
+.env
+*.log
+
+# demo scratch state — regenerated at runtime
+attack/queue.json
+attack/actions.json
