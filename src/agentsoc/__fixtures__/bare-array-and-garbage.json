@@ -1,0 +1,11 @@
+{
+  "comment": "Top-level bare array (no envelope) plus non-tool noise that must be skipped.",
+  "bareArray": [
+    { "type": "tool_use", "name": "slack_post", "input": { "channel": "#support" } },
+    { "type": "status", "name": "done" },
+    null,
+    "not-an-object",
+    { "type": "tool_use" }
+  ],
+  "garbage": { "foo": "bar", "nope": [1, 2, 3] }
+}
