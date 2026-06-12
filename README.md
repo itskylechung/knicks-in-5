@@ -107,6 +107,11 @@ hijack → CI detection → containment → cited.md publish → agent-pays-agen
 each step running the *real* backend. Animated WebGL (Shadertoy-compatible)
 background. Click through it live, or let it tell the story for you.
 
+**Deploy it:** there's a `render.yaml` Blueprint — on Render, *New + → Blueprint →
+connect this repo → Apply*. Runs with zero secrets (x402 in sim mode; the publish
+step links the live cited.md advisory). Set `ANTHROPIC_API_KEY` in the dashboard
+for the full "model flagged the injection" routing message.
+
 ### Agent pays agent for a security audit (x402)
 
 ```bash

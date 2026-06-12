@@ -1,0 +1,25 @@
+# Render Blueprint for the AgentSOC demo GUI.
+# Deploy: Render dashboard → New + → Blueprint → connect this repo → Apply.
+# Everything runs in-process (GUI + x402 facilitator + paid /audit API) with zero
+# secrets. The publish step falls back to the live cited.md advisory unless a real
+# senso CLI + SENSO_API_KEY are present.
+services:
+  - type: web
+    name: agentsoc-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # x402 runs in sim mode (real protocol, simulated on-chain settle) — no wallet needed.
+      - key: PAYMENT_MODE
+        value: sim
+      # Shown for step 5 when the senso CLI isn't available on the host.
+      - key: CITED_PUBLIC_URL
+        value: https://cited.md/article/ab68e7e8-347a-4869-9f79-f22168c7a3fa
+      # Optional: set in the dashboard for the full "model flagged the injection"
+      # routing message. Without it, TriageBot uses a synthesized route (demo still works).
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -109,12 +109,18 @@ app.post("/api/contain", async (_req, res) => {
   res.json({ containment, mode: "runtime-deny" });
 });
 
-// Step 5 — publish the postmortem to cited.md.
+// Step 5 — publish the postmortem to cited.md. When the senso CLI isn't available
+// (e.g. on a hosted deploy), fall back to the already-live advisory URL so the step
+// still shows a real, public cited.md page.
 app.post("/api/publish", async (_req, res) => {
   const incident = state.incident;
   if (!incident) return res.status(400).json({ error: "run contain first" });
   const url = await publishPostmortem(incident);
-  res.json({ url });
+  const finalUrl = /^https?:\/\//.test(url)
+    ? url
+    : process.env.CITED_PUBLIC_URL ??
+      "https://cited.md/article/ab68e7e8-347a-4869-9f79-f22168c7a3fa";
+  res.json({ url: finalUrl });
 });
 
 // Step 6 — agent pays agent for an audit over x402.
@@ -137,7 +143,8 @@ app.post("/api/reset", (_req, res) => {
   res.json({ ok: true });
 });
 
-const GUI_PORT = Number(process.env.GUI_PORT ?? 5173);
+// Render (and most hosts) inject the port to bind via PORT.
+const GUI_PORT = Number(process.env.PORT ?? process.env.GUI_PORT ?? 5173);
 
 async function main() {
   // Stand up the x402 rail in-process for the pay step.
@@ -147,8 +154,9 @@ async function main() {
   await startIntelApi(config.payments.apiPort);
   intelBaseUrl = `http://127.0.0.1:${config.payments.apiPort}`;
 
-  app.listen(GUI_PORT, () => {
-    console.log(`\n  🎬  AgentSOC demo GUI:  http://127.0.0.1:${GUI_PORT}\n`);
+  // 0.0.0.0 so the host's router can reach it (Render requirement).
+  app.listen(GUI_PORT, "0.0.0.0", () => {
+    console.log(`\n  🎬  AgentSOC demo GUI listening on :${GUI_PORT}\n`);
   });
 }
 
