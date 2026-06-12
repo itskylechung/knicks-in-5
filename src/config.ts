@@ -3,8 +3,10 @@ import "dotenv/config";
 export const config = {
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   guild: {
-    apiKey: process.env.GUILD_API_KEY ?? "",
-    workspace: process.env.GUILD_WORKSPACE ?? "",
+    // No API key: the `guild` CLI is authenticated via `guild auth login`
+    // (browser OAuth) and the code shells out to it. Workspace can be set as a
+    // default via `guild workspace select`, or overridden here.
+    workspaceId: process.env.GUILD_WORKSPACE_ID ?? "",
     triagebotAgentId: process.env.TRIAGEBOT_AGENT_ID ?? "",
   },
   sensoKey: process.env.SENSO_API_KEY ?? "",

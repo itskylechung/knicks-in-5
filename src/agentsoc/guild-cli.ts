@@ -56,26 +56,35 @@ export async function listSessions(): Promise<string[]> {
   }
 }
 
-// CONTAINMENT — the guaranteed fallback path. Disable the compromised agent.
-// VENUE TODO: confirm the real subcommand. Candidates seen in docs: an agent
-// disable/pause, or disabling its trigger so it stops picking up work.
+// CONTAINMENT — the guaranteed fallback path. Stop the compromised agent.
+// The documented Guild CLI verb closest to "kill the agent" is `agent unpublish`
+// (removes it from the workspace/hub so it stops serving). There is no `agent
+// disable`/`pause` in the public command list, so unpublish is the real attempt;
+// the others are kept as fallbacks in case your workspace exposes more.
+// VENUE TODO: confirm `guild agent unpublish` actually stops a running agent —
+// if it only delists, "containment" may instead be deleting its trigger/schedule.
 export async function disableAgent(agentId: string): Promise<void> {
-  // Try a few plausible shapes; replace with the confirmed one.
   const attempts: string[][] = [
+    ["agent", "unpublish", agentId],
     ["agent", "disable", agentId],
     ["agent", "pause", agentId],
-    ["trigger", "disable", "--agent", agentId],
   ];
+  let lastErr: unknown;
   for (const args of attempts) {
     try {
       await guild(args);
       console.log(`[AgentSOC] containment: ran \`guild ${args.join(" ")}\``);
       return;
-    } catch {
-      /* try next */
+    } catch (e: any) {
+      // ENOENT = guild CLI not installed (offline/local dev) — treat as dry-run.
+      if (e?.code === "ENOENT") {
+        console.log(`[AgentSOC] containment: guild CLI not found — dry-run disable of ${agentId}`);
+        return;
+      }
+      lastErr = e;
     }
   }
   throw new Error(
-    "Could not disable agent via CLI — fix disableAgent() with the confirmed subcommand.",
+    `Could not disable agent via CLI — fix disableAgent() with the confirmed subcommand. Last error: ${lastErr}`,
   );
 }
