@@ -36,19 +36,22 @@ safe agent — you need runtime enforcement."** A4 should make the Guild agent m
 - [x] B2 · smoke with real key
 - [x] B3 ⭐ · attack reliable
 - [x] B4 · detection tuned
-- [ ] C1 · wire Senso→cited.md fetch (needs SENSO_API_KEY)
-- [ ] C2 · rehearse + record backup tape (NON-NEGOTIABLE)
+- [~] C1 · Senso→cited.md publish WIRED (`src/publish/cited.ts`) → POST
+      `https://sdk.senso.ai/api/v1/content/raw`, `X-API-Key`. Needs SENSO_API_KEY to
+      live-test; if 404, set `SENSO_CONTENT_PATH` to the confirmed route.
+- [x] C2 · demo runbook written → `DEMO.md` (6 beats, the hook line, proof points).
+      STILL TODO: actually record the backup tape.
 
 ## 🟥 Kyle — Lane 1
 - [x] A4 · real TriageBot agent published + installed in workspace
 - [x] A1 · getSessionActions() reads real `guild session events` (verified)
 - [x] A2 · real containment verified (workspace remove + session interrupt)
-- [ ] A0 · ask Guild rep: can we intercept/deny a `credentials_request` event
-      before it's fulfilled? (research: `guild credentials policy` + the
-      `credentials_request` event is the hook). → sets the runtime-deny demo.
-- [ ] A-next · to show a REAL out-of-policy action from Guild (not just the local
-      harness), either connect a GitHub credential so the agent makes real tool
-      calls, or have it request an off-policy integration. Optional polish.
+- [~] A0 · ANSWERED technically: `guild credentials policy create <cred-id>
+      --decision DENY --operations <ops> --agents <agent> --resources <json>` is the
+      runtime-deny lever (block a credential/operation for an agent). Still worth a
+      1-line confirm from a Guild rep that a DENY policy blocks an in-flight request.
+- [ ] A-next (optional) · connect a GitHub credential so the agent makes REAL tool
+      calls → then a real out-of-policy action (comment/close) shows in the audit.
 
 ## Sync points
 - Action trail: local `attack/actions.json` mirror and real `guild session events`
