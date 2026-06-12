@@ -9,6 +9,7 @@
     "agentsoc": "tsx src/agentsoc/index.ts",
     "attack": "tsx attack/send.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "b3": "tsx scripts/b3.ts",
     "demo": "concurrently -n triage,soc -c blue,red \"npm:triagebot\" \"npm:agentsoc\""
   },
   "dependencies": {

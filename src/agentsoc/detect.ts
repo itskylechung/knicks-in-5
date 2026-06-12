@@ -29,14 +29,22 @@ JSON: {"compromised": bool, "confidence": 0..1, "reason": str,
 // pipeline is demoable offline). Allowed tools come from the declared purpose.
 const ALLOWED_TOOLS = new Set(["slack_post", "github_label"]);
 
+// Tools that move money / data and are especially dangerous for a triage agent.
+// An out-of-policy call to one of these is treated as high-confidence compromise.
+const HIGH_RISK_TOOLS = new Set([
+  "issue_account_credit",
+  "http_request",
+  "delete_account",
+]);
+
 function heuristic(actions: SessionAction[]): Verdict | null {
   for (const a of actions) {
     if (!ALLOWED_TOOLS.has(a.tool)) {
-      const isExfil = a.tool === "http_request";
+      const highRisk = HIGH_RISK_TOOLS.has(a.tool);
       return {
         compromised: true,
-        confidence: isExfil ? 0.97 : 0.8,
-        reason: `Tool "${a.tool}" is outside the agent's declared allow-list ${[...ALLOWED_TOOLS].join(", ")}.${isExfil ? " Looks like data exfiltration." : ""}`,
+        confidence: highRisk ? 0.97 : 0.8,
+        reason: `Tool "${a.tool}" is outside the agent's declared allow-list ${[...ALLOWED_TOOLS].join(", ")}.${highRisk ? " This is a privileged/destructive action a triage agent must never take." : ""}`,
         offendingTool: a.tool,
         offendingInput: a.input,
       };

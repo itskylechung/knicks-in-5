@@ -5,3 +5,7 @@ node_modules/
 # demo scratch state — regenerated at runtime
 attack/queue.json
 attack/actions.json
+
+# Guild-managed agent dir — it's its own git repo with its own remote
+# (pushed via `guild agent save`). Don't nest it into this repo.
+victim_agent/
