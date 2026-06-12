@@ -10,38 +10,55 @@ polish on already-scaffolded code. Swap if you prefer; just keep the seam clean.
 ---
 
 ## 🟥 Lane 1 — Guild integration & containment  → **Kyle**
-The highest-risk half. Everything here depends on real Guild behavior you confirm
-at the venue. Start with A0 — it unblocks the rest.
+The highest-risk half. **Build progress: scaffolding + CLI-confirmed wiring done**
+(multi-agent build + live `guild v0.12.3` probe). What remains needs auth + a live
+session at the venue. See `docs/guild-containment-feasibility.md` for the full
+CLI verification. Code is in `guild-cli.ts`, `contain.ts`, `approval-server.ts`.
 
-### A0 · Task 0: decide CONTAINMENT_MODE · P0 · blocks A3
-- [ ] Ask Guild rep / test: is `guild_credentials_request` interceptable by an
-      approval webhook or another agent *before it runs*?
-- [ ] YES → `CONTAINMENT_MODE=runtime-deny` (the win). NO → `cli-disable`.
-- [ ] Set the chosen mode in `.env`.
-- **Done when:** team knows which `contain.ts` path is live.
+### A0 · Decide CONTAINMENT_MODE · P0 · 🟡 RESEARCHED — needs venue confirm
+- [x] Researched + live-probed Guild CLI. `guild_credentials_request` is a
+      human-in-the-loop self-gate (no third-party approver in docs) — BUT live CLI
+      has `credentials policy create/update/delete` (a scriptable deny lever) and
+      `session interrupt <session-id>` (kill an in-flight run).
+- [ ] **Venue:** confirm whether a newly-created `credentials policy` is enforced
+      *pre-execution* on the in-flight call → if YES, runtime-deny is real.
+- [x] Default stays `cli-disable` (safe). runtime-deny stays behind the env flag.
+- **Done when:** venue confirms the policy/interrupt enforcement timing.
 
-### A1 · Wire `getSessionActions()` to real Guild output · P0
+### A1 · Wire `getSessionActions()` to real Guild output · P0 · 🟡 WIRED — needs real JSON
 `src/agentsoc/guild-cli.ts` — telemetry IN.
-- [ ] Run `guild session get <id> --json`, capture real JSON shape; fix the remap.
-- **Done when:** AgentSOC reads actions from Guild, not the file mirror.
+- [x] Built a permissive `normalizeSessionActions()` (handles ~6 shapes) + fixtures
+      + parser test (7/7 pass). Argv CONFIRMED: `guild --mode json session get <id>`
+      (was wrongly `--json`).
+- [ ] **Venue:** capture the real `session get`/`events` JSON body (needs auth +
+      live session) to confirm/trim the normalizer mapping.
+- **Done when:** AgentSOC reads real Guild actions, not the file mirror.
 
-### A2 · Wire `disableAgent()` to confirmed subcommand · P0 (if cli-disable) · depends: A0
-`src/agentsoc/guild-cli.ts` — containment OUT (guaranteed path).
-- [ ] Confirm real subcommand; replace the 3-guess loop.
-- **Done when:** detecting a hijack actually stops the agent.
+### A2 · Wire containment subcommand · P0 · 🟡 WIRED — needs venue confirm
+`src/agentsoc/guild-cli.ts` — containment OUT.
+- [x] Confirmed NO `agent disable`/`pause`. `disableAgent()` now uses the real
+      `agent unpublish <id>`, plus `GUILD_DISABLE_CMD` env override for a 1-line swap.
+- [ ] **Venue:** decide kill verb — `agent unpublish` (delist) vs `session interrupt
+      <session-id>` (stop in-flight, cleaner). If the latter, track the live session id.
+- **Done when:** detecting a hijack actually stops the agent/run.
 
-### A3 · Wire `runtimeDeny()` to the credential hook · P0 only if A0=YES · depends: A0
-`src/agentsoc/contain.ts` — the WINNING path.
-- [ ] Return the denial to Guild's `guild_credentials_request` flow.
+### A3 · runtime-deny path · P0 if A0=YES · 🟡 OFFLINE-DEMOABLE built
+`src/agentsoc/contain.ts` + `approval-server.ts`.
+- [x] Built `approval-server.ts` (local node:http stand-in for Guild's credential
+      hook) + `runtimeDeny()` arms a denial via the policy API. Provable offline.
+- [ ] **Venue:** swap the local server for Guild's real enforcement (`credentials
+      policy create` and/or the cred-request resolver) if A0 confirms it's interceptable.
 - **Done when:** the hijacked `http_request` is blocked live, before it runs.
 
-### A4 · TriageBot as a real Guild agent · P1 · depends: A1
-- [ ] Move `handleTicket()` body into a Guild agent def; scope to `slack_post` +
-      `github_label`; confirm tool calls hit the session audit trail.
+### A4 · TriageBot as a real Guild agent · P1 · depends: venue auth
+- [ ] `guild agent init` a real agent; move `handleTicket()` logic in; scope to
+      `slack_post` + `github_label`; confirm tool calls hit the session audit trail.
 - **Done when:** the on-screen agent is a real Guild agent.
 
-### A5 · Live session tail (SIEM stream) · P2 stretch
-- [ ] If Guild can tail events, replace AgentSOC's 3s poll with a stream.
+### A5 · Live session tail (SIEM stream) · P2 stretch · 🟢 likely feasible
+- [x] Confirmed `guild session events <id>` exists ("Stream session events").
+- [ ] **Venue:** confirm it follows/streams (vs snapshot); if so, swap AgentSOC's
+      3s poll for the tail. Keep both behind the `SessionAction[]` contract.
 
 ---
 

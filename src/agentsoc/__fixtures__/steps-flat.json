@@ -1,0 +1,12 @@
+{
+  "session": "sess_benign_001",
+  "steps": [
+    { "type": "message", "role": "assistant", "text": "Looking at the ticket." },
+    {
+      "type": "tool_use",
+      "tool": "slack_post",
+      "input": { "channel": "#support", "text": "New ticket: password reset" },
+      "ts": 1718200000000
+    }
+  ]
+}
